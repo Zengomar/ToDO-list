@@ -2,10 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, Button, TextInput, StatusBar } from 'react-native';
 import { useState, useEffect } from 'react';
 import { FontAwesome } from '@expo/vector-icons';
-import NetInfo from '@react-native-community/netinfo';
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import DateTimePicker
 import { fetchTasks as fetchTasksFromStorage, addTaskToStorage, deleteTaskFromStorage, toggleTaskCompletionInStorage } from '@/Components/loaclSrorage';
-import { getItems as fetchTasksFromFirestore, addItem as addTaskToFirestore, deleteItem as deleteTaskFromFirestore, markTaskAsCompleted as toggleTaskCompletionInFirestore } from '@/Components/fireStore';
 
 
 
@@ -24,93 +22,47 @@ const Index = () => {
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskCompletionDate, setNewTaskCompletionDate] = useState(''); // New state for completion date
     const [newTaskCompletionTime, setNewTaskCompletionTime] = useState(''); // New state for completion time
-    const [isOnline, setIsOnline] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false); // State to toggle date picker
     const [showTimePicker, setShowTimePicker] = useState(false); // State to toggle time picker
 
     useEffect(() => {
-        const checkConnection = async () => {
-            const state = await NetInfo.fetch();
-            const online = state.isConnected ?? false;
-            setIsOnline(online);
-
-            if (online) {
-                if (localTasks.length > 0) {
-                    for (const task of localTasks) {
-                        if (!task.id) {
-                            await addTaskToFirestore(task.title, task);
-                        }
-                    }
-                    setLocalTasks([]); // Clear local tasks after syncing
-                }
-
-                const tasksFromFirestore = await fetchTasksFromFirestore('tasks');
-                const formattedTasks = tasksFromFirestore.map((doc: { id: string; title?: string; completed?: boolean; completionDate?: string; completionTime?: string }) => ({
-                    id: doc.id,
-                    title: doc.title || 'Untitled Task', // Ensure title is provided
-                    completed: doc.completed || false,  // Ensure completed is provided
-                    completionDate: doc.completionDate || '',
-                    completionTime: doc.completionTime || '',
-                }));
-                setTasks(formattedTasks);
-            } else {
-                const tasksFromStorage = await fetchTasksFromStorage();
-                setTasks(tasksFromStorage);
+        // Fetch tasks from local storage on component mount
+        const fetchTasks = async () => {
+            try {
+            const storedTasks = await fetchTasksFromStorage();
+            setLocalTasks(storedTasks); // Set local tasks from storage
+            setTasks(storedTasks); // Set tasks for rendering
+            }
+            catch (error) {
+                console.error('Error fetching tasks from local storage:', error);
             }
         };
-
-        checkConnection();
-    }, [isOnline]);
+    }, []);
 
     const handleAddTask = async (newTask: Task) => {
-        if (isOnline) {
-            const addedTask = await addTaskToFirestore(newTask.title, {
-                ...newTask,
-                completionDate: newTask.completionDate,
-                completionTime: newTask.completionTime,
-            });
-            if (addedTask && typeof addedTask !== 'string') {
-                setTasks((prevTasks) => [...prevTasks, addedTask]); // Use the returned task with ID
-            }
-        } else {
+        if (!newTask.title.trim()) {
+            alert('Task title is required');
+        }
             const updatedTasks = await addTaskToStorage(tasks, newTask);
             setTasks(updatedTasks);
-            setLocalTasks((prevLocalTasks) => [...prevLocalTasks, newTask]); // Update local tasks
-        }
+            setLocalTasks(prevLocalTasks => [...prevLocalTasks, newTask]);
     };
 
     const handleDeleteTask = async (task: Task) => {
-        if (isOnline) {
-            if (task.id) {
-                await deleteTaskFromFirestore(task.id, 'tasks'); // Pass the second argument
-                setTasks(tasks.filter((t) => t.id !== task.id));
+            try {
+                const updatedTasks = await deleteTaskFromStorage(tasks, task);
+                setTasks(updatedTasks);
+                setLocalTasks(prevLocalTasks => prevLocalTasks.filter(t => t.id !== task.id));
+            } catch (error) {
+                console.error('Error deleting task from local storage:', error);
             }
-        } else {
-            const updatedTasks = await deleteTaskFromStorage(tasks, task);
-            setTasks(updatedTasks);
-            setLocalTasks(localTasks.filter((t) => t.title !== task.title)); // Remove from local tasks
-        }
     };
 
+
     const handleCheckTask = async (task: Task) => {
-        if (isOnline) {
-            if (task.id) {
-                await toggleTaskCompletionInFirestore(task.id, String(!task.completed));
-                setTasks(
-                    tasks.map((t) =>
-                        t.id === task.id ? { ...t, completed: !t.completed } : t
-                    )
-                );
-            }
-        } else {
             const updatedTasks = await toggleTaskCompletionInStorage(tasks, task);
             setTasks(updatedTasks);
-            setLocalTasks(
-                localTasks.map((t) =>
-                    t.title === task.title ? { ...t, completed: !t.completed } : t
-                )
-            ); // Update local tasks
-        }
+            setLocalTasks(localTasks.map(t => (t.id === task.id ? { ...t, completed: !t.completed } : t)));
     };
 
     const handleAddButtonPress = () => {
@@ -333,10 +285,7 @@ const styles = StyleSheet.create({
         padding: 10,
         marginVertical: 10,
         borderRadius: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)',
         flexDirection: 'row',
         alignItems: 'center',
     },
