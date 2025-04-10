@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesome } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import DateTimePicker
 import { fetchTasks as fetchTasksFromStorage, addTaskToStorage, deleteTaskFromStorage, toggleTaskCompletionInStorage } from '@/Components/loaclSrorage';
-
-
+import { setupNotifications , scheduleNotification } from '@/utils/notifications'; // Import the notification utility
 
 interface Task {
     id?: string;
@@ -24,6 +23,10 @@ const Index = () => {
     const [newTaskCompletionTime, setNewTaskCompletionTime] = useState(''); // New state for completion time
     const [showDatePicker, setShowDatePicker] = useState(false); // State to toggle date picker
     const [showTimePicker, setShowTimePicker] = useState(false); // State to toggle time picker
+
+    useEffect(() => {
+        setupNotifications(); // اطلب الإذن أول ما التطبيق يفتح
+      }, []);
 
     useEffect(() => {
         // Fetch tasks from local storage on component mount
@@ -46,6 +49,12 @@ const Index = () => {
             const updatedTasks = await addTaskToStorage(tasks, newTask);
             setTasks(updatedTasks);
             setLocalTasks(prevLocalTasks => [...prevLocalTasks, newTask]);
+            await scheduleNotification(
+                'Task Reminder',
+                `Don't forget to complete: ${newTask.title}`,
+                new Date(newTask.completionDate || ''), // Use the selected date
+                new Date(newTask.completionTime || '') // Use the selected time
+              );
     };
 
     const handleDeleteTask = async (task: Task) => {
