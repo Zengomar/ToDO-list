@@ -40,8 +40,6 @@ export const getItems = async (collectionName: string) => {
         return querySnapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
-            completionDate: doc.data().completionDate || '',
-            completionTime: doc.data().completionTime || '',
         }));
     } catch (error) {
         console.error('Error fetching Firestore data:', error);

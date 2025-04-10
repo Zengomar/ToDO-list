@@ -35,7 +35,6 @@ const Index = () => {
             setIsOnline(online);
 
             if (online) {
-                // Sync local tasks to Firestore when back online
                 if (localTasks.length > 0) {
                     for (const task of localTasks) {
                         if (!task.id) {
