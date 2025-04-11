@@ -1,5 +1,4 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 
 // إعداد الإشعارات: طلب الإذن + قناة أندرويد
 export const setupNotifications = async (): Promise<void> => {

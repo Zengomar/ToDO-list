@@ -102,14 +102,6 @@ const Index = () => {
         }
     };
 
-    const handleTimeChange = (event: any, selectedTime?: Date) => {
-        setShowTimePicker(false);
-        if (selectedTime) {
-            const hours = selectedTime.getHours().toString().padStart(2, '0');
-            const minutes = selectedTime.getMinutes().toString().padStart(2, '0');
-            setNewTaskCompletionTime(`${hours}:${minutes}`); // Format as HH:MM
-        }
-    };
 
     const TaskCard = ({ task }: { task: Task }) => {
         const handleDelete = () => {
