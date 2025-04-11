@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react';
 import { FontAwesome } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import DateTimePicker
 import { fetchTasks as fetchTasksFromStorage, addTaskToStorage, deleteTaskFromStorage, toggleTaskCompletionInStorage } from '@/Components/loaclSrorage';
-import { setupNotifications , scheduleNotification } from '@/utils/notifications'; // Import the notification utility
+import { setupNotifications , scheduleNotification , cleanNotification } from '@/utils/notifications'; // Import the notification utility
 
 interface Task {
     id?: string;
     title: string;
     completed?: boolean;
     completionDate?: string; // Existing field for completion date
-    completionTime?: string; // New field for completion time
+    completionTime?: Date; // New field for completion time
+    completionTimeinHour?: number;
+    completionTimeinMinutes?: number;
 }
 
 const Index = () => {
@@ -20,7 +22,7 @@ const Index = () => {
     const [showForm, setShowForm] = useState(false);
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskCompletionDate, setNewTaskCompletionDate] = useState(''); // New state for completion date
-    const [newTaskCompletionTime, setNewTaskCompletionTime] = useState(''); // New state for completion time
+    const [newTaskCompletionTime, setNewTaskCompletionTime] = useState<Date>(new Date(0,0,0,0,0)); // New state for completion time
     const [showDatePicker, setShowDatePicker] = useState(false); // State to toggle date picker
     const [showTimePicker, setShowTimePicker] = useState(false); // State to toggle time picker
 
@@ -40,16 +42,18 @@ const Index = () => {
                 console.error('Error fetching tasks from local storage:', error);
             }
         };
+        fetchTasks();
     }, []);
 
     const handleAddTask = async (newTask: Task) => {
-        if (!newTask.title.trim()) {
-            alert('Task title is required');
-        }
+            if (!newTask.title.trim()) {
+                alert('Task title is required');
+            }
             const updatedTasks = await addTaskToStorage(tasks, newTask);
             setTasks(updatedTasks);
             setLocalTasks(prevLocalTasks => [...prevLocalTasks, newTask]);
             await scheduleNotification(
+                newTask.title,
                 'Task Reminder',
                 `Don't forget to complete: ${newTask.title}`,
                 new Date(newTask.completionDate || ''), // Use the selected date
@@ -62,6 +66,7 @@ const Index = () => {
                 const updatedTasks = await deleteTaskFromStorage(tasks, task);
                 setTasks(updatedTasks);
                 setLocalTasks(prevLocalTasks => prevLocalTasks.filter(t => t.id !== task.id));
+                await cleanNotification(task.title);
             } catch (error) {
                 console.error('Error deleting task from local storage:', error);
             }
@@ -72,6 +77,7 @@ const Index = () => {
             const updatedTasks = await toggleTaskCompletionInStorage(tasks, task);
             setTasks(updatedTasks);
             setLocalTasks(localTasks.map(t => (t.id === task.id ? { ...t, completed: !t.completed } : t)));
+            await cleanNotification(task.title); 
     };
 
     const handleAddButtonPress = () => {
@@ -84,11 +90,13 @@ const Index = () => {
                 title: newTaskTitle,
                 completionDate: newTaskCompletionDate || '', // Provide default values if empty
                 completionTime: newTaskCompletionTime || '',
+                completionTimeinHour: newTaskCompletionTime.getHours(),
+                completionTimeinMinutes: newTaskCompletionTime.getMinutes()
             };
             await handleAddTask(newTask); // Add the task
             setNewTaskTitle(''); // Reset input fields
             setNewTaskCompletionDate('');
-            setNewTaskCompletionTime('');
+            setNewTaskCompletionTime(new Date);
             setShowForm(false); // Close the form
         } else {
             alert('Task title is required'); // Notify user if title is empty
@@ -102,6 +110,15 @@ const Index = () => {
         }
     };
 
+    const handleTimeChange = (event: any, selectedTime?: Date) => {
+        setShowTimePicker(false);
+        if (selectedTime) {
+            setNewTaskCompletionTime(selectedTime); // Format as HH:MM
+
+        }
+    };
+    const hours = newTaskCompletionTime.getHours().toString().padStart(2, '0');
+    const minutes = newTaskCompletionTime.getMinutes().toString().padStart(2, '0');
 
     const TaskCard = ({ task }: { task: Task }) => {
         const handleDelete = () => {
@@ -112,6 +129,7 @@ const Index = () => {
             handleCheckTask(task);
         };
 
+        
         return (
             <View style={styles.card}>
                 <FontAwesome
@@ -122,11 +140,11 @@ const Index = () => {
                     style={styles.icon}
                 />
                 <Text style={[styles.cardText, task.completed && styles.completedText]}>
-                    {task.title}
+                    {task.title} 
                 </Text>
                 <Text style={styles.cardText}>
-                    {task.completionDate ? `Due: ${task.completionDate}` : ''}
-                    {task.completionTime ? ` at ${task.completionTime}` : ''}
+                    {task.completionDate ? `  Due: ${task.completionDate}` : ''}
+                    {task.completionTime ? `at: ${task.completionTimeinHour}:${task.completionTimeinMinutes}` :``}
                 </Text>
                 {task.completed && (
                     <FontAwesome
@@ -183,7 +201,7 @@ const Index = () => {
                                 />
                             )}
                             <Button
-                                title={newTaskCompletionTime ? `Time: ${newTaskCompletionTime}` : 'Select Time'}
+                                title={newTaskCompletionTime ? `Time: ${hours}:${minutes}` : 'Select Time'}
                                 onPress={() => setShowTimePicker(true)}
                                 color="#4F1B1B"
                             />
@@ -233,7 +251,7 @@ const Index = () => {
                                 />
                             )}
                             <Button
-                                title={newTaskCompletionTime ? `Time: ${newTaskCompletionTime}` : 'Select Time'}
+                                title={newTaskCompletionTime ? `Time: ${hours}:${minutes}` : 'Select Time'}
                                 onPress={() => setShowTimePicker(true)}
                                 color="#4F1B1B"
                             />
@@ -289,14 +307,20 @@ const styles = StyleSheet.create({
         boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)',
         flexDirection: 'row',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        overflow: 'hidden',
     },
     cardText: {
         fontSize: 18,
         color: '#000000',
+        flexShrink: 1,
+        flexWrap: 'wrap',
     },
     completedText: {
         textDecorationLine: 'line-through',
         color: '#888',
+        flexShrink: 1,
+        flexWrap: 'wrap',
     },
     check: {
         backgroundColor: '#ffffff',
@@ -343,6 +367,8 @@ const styles = StyleSheet.create({
     },
     icon: {
         marginHorizontal: 10,
+        flexShrink: 1,
+        flexWrap: 'wrap',
     },
 });
 
